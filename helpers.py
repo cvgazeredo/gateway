@@ -5,7 +5,7 @@ from typing import Dict
 
 from jwt import DecodeError
 
-AUTHENTICATION_SERVICE_URL = "http://127.0.0.1:8000"
+AUTHENTICATION_SERVICE_URL = "http://authentication:8000"
 
 
 def get_user_id():

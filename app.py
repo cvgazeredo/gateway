@@ -7,7 +7,7 @@ from schema import CreateOrderSchema, SearchStockSchema, GetOrderById, SellStock
 from helpers import authenticate, get_user_id
 
 # Gateway config
-info = Info(title="Project Home Broker -  Gateway", version="1.0.0")
+info = Info(title="Project Home Broker -  Gateway", version="1.0.0", description="Manage and route requests from clients to the appropriate service")
 
 # JWT Bearer Sample
 jwt = {
@@ -21,16 +21,17 @@ security_schemes = {"jwt": jwt}
 app = OpenAPI(__name__, info=info, security_schemes=security_schemes)
 
 # Tags for documentation
-home_tag = Tag(name="Documentation - Gateway", description="Select doc: Swagger, Redoc")
-gateway_tag = Tag(name="Gateway")
-orders_tag = Tag(name="Orders Service")
-stocks_tag = Tag(name="Stocks Service")
-users_tag = Tag(name="Users Service")
+home_tag = Tag(name="Documentation - Gateway", description="Select doc: Swagger, Redoc ou RapiDoc")
+gateway_tag = Tag(name="Gateway", description="Manage and route requests from clients to the appropriate service")
+orders_tag = Tag(name="Orders Service", description="Manage user order transactions")
+stocks_tag = Tag(name="Stocks Service", description="Retrieve stock information, including individual stock data "
+                                                    "and list of popular stocks")
+users_tag = Tag(name="Users Service", description="Authenticate, register, retrieve, edit and delete user")
 
 
-ORDER_SERVICE_URL = "http://127.0.0.1:5000"
-STOCK_SERVICE_URL = "http://127.0.0.1:5001"
-USER_SERVICE_URL = "http://127.0.0.1:8000"
+ORDER_SERVICE_URL = "http://orders-service:5000"
+STOCK_SERVICE_URL = "http://stocks-service:5001"
+USER_SERVICE_URL = "http://authentication:8000"
 
 security = [
     {"jwt": []}
@@ -43,7 +44,7 @@ def home():
 
 
 # STOCK SERVICE:
-@app.get("/stock", tags=[stocks_tag])
+@app.get("/stock", tags=[stocks_tag], summary="Get stock price by symbol")
 def get_stock(query: SearchStockSchema):
 
     # Stock's symbol
@@ -64,8 +65,26 @@ def get_stock(query: SearchStockSchema):
     return {"message": f"Stock data: {stock_data}"}
 
 
+@app.get("/stock/list", tags=[stocks_tag], summary="List popular Nasdaq stocks")
+def get_list_most_popular_stocks():
+    try:
+        # Request to Stock Service to retrieve stocks information
+        stocks_request = requests.get(STOCK_SERVICE_URL + "/stock/list")
+
+        # Check if Stock Service returned a 404 status code (not found)
+        if stocks_request.status_code == 404:
+            return {"error": "Stock information not available"}
+
+        list_stocks_data = stocks_request.json()
+
+    except requests.exceptions.ConnectionError:
+        return "Stock Service encounter an error"
+
+    return {"message": list_stocks_data}
+
+
 # ORDER SERVICE:
-@app.get("/order/user", security=security, tags=[orders_tag])
+@app.get("/order/user", security=security, tags=[orders_tag], summary="Filter user's transactions")
 def filter_order_by_user():
 
     url = ORDER_SERVICE_URL + "/order/user"
@@ -99,7 +118,7 @@ def filter_order_by_user():
         return "Order Service unavailable", 503
 
 
-@app.get("/order", tags=[orders_tag])
+@app.get("/order", tags=[orders_tag], summary="Get order by id")
 def get_order_by_id(query: GetOrderById):
     order_id = query.order_id
 
@@ -119,8 +138,8 @@ def get_order_by_id(query: GetOrderById):
     return {"Order": f"{order_data}"}
 
 
-@app.post("/order/create", security=security, tags=[orders_tag])
-def create_orders(form: CreateOrderSchema):
+@app.post("/order/create", security=security, tags=[orders_tag], summary="Crate order - Buy stock")
+def create_order(form: CreateOrderSchema):
 
     url = ORDER_SERVICE_URL + "/order/create"
 
@@ -158,7 +177,7 @@ def create_orders(form: CreateOrderSchema):
         return "Order Service unavailable", 503
 
 
-@app.post("/order/sell", security=security, tags=[orders_tag])
+@app.post("/order/sell", security=security, tags=[orders_tag], summary="Crate order - Sell stock")
 def sell_stocks(form: SellStockSchema):
 
     url = ORDER_SERVICE_URL + "/order/sell"
@@ -200,7 +219,7 @@ def sell_stocks(form: SellStockSchema):
 
 
 # USER SERVICE
-@app.post("/user/token", tags=[users_tag])
+@app.post("/user/token", tags=[users_tag], summary="Authenticate user and obtain an access token")
 def get_user_token(form: GetUserAuthenticationToken):
 
     url = USER_SERVICE_URL + "/api/token/"
@@ -229,7 +248,7 @@ def get_user_token(form: GetUserAuthenticationToken):
         return "User Service unavailable", 503
 
 
-@app.get("/user", security=security, tags=[users_tag])
+@app.get("/user", security=security, tags=[users_tag], summary="Get user details")
 def get_user():
 
     response = authenticate()
@@ -238,10 +257,10 @@ def get_user():
     return user_details, 200
 
 
-@app.post("/user/create", tags=[users_tag])
+@app.post("/user/create", tags=[users_tag], summary="Create user")
 def create_user(form: CreateUserSchema):
 
-    url = "http://127.0.0.1:8000/user/create/"
+    url = USER_SERVICE_URL + "/user/create/"
 
     try:
         # Data for register user
@@ -270,7 +289,7 @@ def create_user(form: CreateUserSchema):
         return "User Service unavailable", 503
 
 
-@app.delete("/user/delete", security=security, tags=[users_tag])
+@app.delete("/user/delete", security=security, tags=[users_tag], summary="Delete user")
 def delete_user():
 
     try:
@@ -302,7 +321,7 @@ def delete_user():
         return "User Service unavailable", 503
 
 
-@app.put("/user/edit", security=security, tags=[users_tag])
+@app.put("/user/edit", security=security, tags=[users_tag], summary="Edit user")
 def edit_user(form: EditUserSchema):
 
     email = form.email
